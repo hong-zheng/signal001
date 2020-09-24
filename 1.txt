@@ -1,0 +1,157 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+
+
+// 在命令行中输入： ./mykill 1234
+// 程序获得两个参数 ./muykill 与 1234
+void main(int argc,char* argv[]){
+// 如果不为两个参数，则用法不对
+	if(argc != 2){
+		printf("usage : %s error\n",argv[0]) ;
+		exit(1) ;
+	}
+	// 将第二个参数进程号从字符串转换为 int 类的 pid
+	int pid = atoi(argv[1]) ;
+	// 给进程pid发送信号 SIGKILL
+	// 发送进程需要经过内核，然后再从内核传送给需要发送的进程pid
+	// 信号 SIGKILL 最后给哪一个进程都是内核发送过去的
+	kill(pid,SIGKILL) ;
+
+	// 如果将信号 SIGKILL 发送给getpid()进程
+	kill(getpid(),SIGKILL) ;
+// 专门定义了一种写法：
+// 定义：int raise(int sig) ;// 给自身发送信号 sig
+// return 0 on sucess , and nonzero for failure.
+
+//	raise(SIGKILL) ;
+
+}
+
+// 并发执行：相互切换时间片
+// 并行执行：同一时刻在执行
+
+// -v : 反向过滤
+// ps -ef | grep a.out | grep -v grep
+
+// ps -aux | grep ./a.out
+
+{
+
+	void handler(int s){
+	// -1 : 表示等待任意一个子进程
+	// WNOHANG：return immediately if no child has exited.
+	// while() : 一直等待子进程的结束kill it.
+		while(waitpid(-1,NULL,WNOHANG) > 0) ;
+	}
+
+	void test(){
+		signal(SIGCHLD,handler) ;
+		int num , i ;
+
+		printf("num:") ;
+		scanf("%d",&num) ;
+
+		pid_t ppid = getpid() ;
+
+		// 创建num个子进程
+		for(i = 0 ; i<num ; ++i){
+			if( fork() == 0 )
+				break ; // 子进程直接跳出 
+		}
+
+		// 此时只有父进程才能进入，子进程不能进入
+		if( ppid == getpid() ){
+			// 此处为父进程
+			for(;;){
+				printf("$");
+				fflush(stdout);
+				sleep(1);
+			}
+			// 子进程执行当前代码，很快就执行完毕
+		}else for(i=0;i<10;++i){
+			printf(".") ;
+			fflush(stdout) ;
+			sleep(1);
+		}
+	}
+
+}
+
+
+// 利用 SIGALRM 写一个考试系统
+// 定时：用函数 alarm(int sec) ;// sec s之后触发信号
+// signal(SIGALRM,handler) ;
+{
+// 考试系统：V表示正确数，X表示错误数
+	int V = 0  , X  = 0 ;
+	void hanlder(int s){
+		printf("time out!\n") ;
+		printf("V = %d,X = %d\n",V,X) ;
+		exit(0) ; // 时间到了，发送信号过来，结束进程
+ 	}
+
+ 	int main(){
+
+ 		// SIGALRM：发送信号SIGALRM给handler
+ 		signal(SIGALRM,handler) ;
+
+ 		alarm(20) ;// 等待20s，时间到就触发信号 SIGALRM ， 此时 handler 就被激活
+
+ 		int i ;
+ 		srand(time(NULL)) ;
+
+ 		// 该模块为做题的主业务：
+ 		// 如果题目没有做完，alarm(20)设置的时间到了，则就直接停止退出
+ 		// 如果做完没有到 20 s ，则可直接退出.
+ 		for(i=0;i<10;++i){
+ 			int left = rand() % 10 ;
+ 			int right = rand() % 10 ;
+ 			int ret = 0 ;
+ 			printf("%d + %d = ",left,right) ;
+ 			scanf("%d",&ret) ;
+ 			if( ret == left + right){
+ 				++V ;
+ 			}else{
+ 				++X ;
+ 			}
+ 		}
+ 		printf("V = %d,X = %d\n",V,X) ;
+ 		return 0 ;
+ 	}
+}
+
+// 另外一种定时器：
+{
+	void handler(int s){
+		printf("time out\n") ;
+	}
+
+	int main(){
+
+		signal(SIGALRM,handler) ;
+
+		struct itimerval it ;
+		// 设置开始时间：1s钟之后开始计时
+		it.it_value.tv_sec =  1 ;
+		it.it_value.tv_usec = 0 ;
+
+		// 每隔2s钟给handler发送一个 SIGALRM 信号
+		it.it_interval.tv_sec  = 2 ;
+		it.it_interval.tv_usec = 0 ;
+
+		// 设置定时器(类似方法还有 alarm(n) , ns之后启动)
+		setitimer(ITIMER_REAL,&it,NULL) ;
+		
+		for(;;){
+			printf(".") ;
+			fflush(stdout) ;
+			sleep(1) ;
+		}
+		return 0 ;
+	}
+}
+
+
+
